@@ -2,3 +2,21 @@ python-telegram-bot
 requests
 Pillow
 
+# اجعل فرعك المحلي main جاهزًا للمتابعة مع GitHub
+git branch -M main
+
+# اربط الفرع البعيد إذا لم يكن مرتبطًا بالفعل
+git remote set-url origin https://github.com/Hassan913AA/telegram-bot.git
+
+# جلب أي تغييرات من GitHub ودمجها مع تعديلاتك المحلية
+git pull origin main --rebase
+
+# أضف جميع الملفات المحلية الجديدة أو المعدلة
+
+
+
+# سجل التغييرات مع رسالة مناسبة
+git commit -m "first upload"
+
+# ادفع التغييرات إلى GitHub
+git push -u origin main
