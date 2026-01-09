@@ -13,9 +13,12 @@ import os
 
 # ===== إعدادات =====
 ADMIN_ID = 8094390739
-USERS = {8094390739}
-WAITING_BROADCAST = "waiting_broadcast"
+USERS = {ADMIN_ID}
 
+# ===== متغيرات البث لكل نوع =====
+WAITING_TEXT = "waiting_text"
+WAITING_PHOTO = "waiting_photo"
+WAITING_AUDIO = "waiting_audio"
 
 # ===== نظام حفظ المستخدمين =====
 def load_users():
@@ -42,9 +45,9 @@ USERS = load_users() or USERS
 # ===== القوائم =====
 MAIN_MENU = ReplyKeyboardMarkup(
     [
-        [KeyboardButton("🏫 الصف التاسع")],
+       
         [KeyboardButton("🎓 بكالوريا علمي"), KeyboardButton("📚 بكالوريا أدبي")],
-        [KeyboardButton("🚀 الانتقالي")],
+       
         [KeyboardButton("ℹ️ Info")]
     ],
     resize_keyboard=True
@@ -83,15 +86,18 @@ async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
 
-    context.user_data[WAITING_BROADCAST] = True
+    context.user_data[WAITING_TEXT] = True
+    context.user_data[WAITING_PHOTO] = True
+    context.user_data[WAITING_AUDIO] = True
+
     await update.message.reply_text("📢 أرسل الآن نص / صورة / صوت")
 
 
 # ===== بث صورة =====
-async def handle_photo(update, context):
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
-    if not context.user_data.get(WAITING_BROADCAST):
+    if not context.user_data.get(WAITING_PHOTO):
         return
 
     photo = update.message.photo[-1]
@@ -103,15 +109,14 @@ async def handle_photo(update, context):
         except:
             pass
 
-    context.user_data[WAITING_BROADCAST] = False
-    await update.message.reply_text("✅ Broadcast sent")
-
+    context.user_data[WAITING_PHOTO] = False
+    await update.message.reply_text("✅ Broadcast sent (photo)")
 
 # ===== بث صوت =====
 async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
-    if not context.user_data.get(WAITING_BROADCAST):
+    if not context.user_data.get(WAITING_AUDIO):
         return
 
     audio = update.message.audio or update.message.voice
@@ -124,9 +129,8 @@ async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             pass
 
-    context.user_data[WAITING_BROADCAST] = False
-    await update.message.reply_text("✅ Broadcast sent")
-
+    context.user_data[WAITING_AUDIO] = False
+    await update.message.reply_text("✅ Broadcast sent (audio)")
 
 # ===== الرسائل النصية + وظائف البوت =====
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -135,18 +139,18 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_users()
 
     # ===== بث نص =====
-    if context.user_data.get(WAITING_BROADCAST) and update.effective_user.id == ADMIN_ID:
+    if context.user_data.get(WAITING_TEXT) and update.effective_user.id == ADMIN_ID:
         for uid in USERS:
             try:
                 await context.bot.send_message(chat_id=uid, text=text)
             except:
                 pass
 
-        context.user_data[WAITING_BROADCAST] = False
-        await update.message.reply_text("✅ Broadcast sent")
+        context.user_data[WAITING_TEXT] = False
+        await update.message.reply_text("✅ Broadcast sent (text)")
         return
 
-    # ===== كتب PDF مع رسالة انتظار حقيقية =====
+    # ===== كتب PDF =====
     if text == "📘 Grammar PDF":
         waiting = await update.message.reply_text("⏳ جاري تجهيز Grammar…")
         try:
@@ -177,8 +181,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             await waiting.edit_text("❌ الملف غير موجود!")
 
-    # ===== باقي وظائف البوت =====
-    elif text in ["🏫 الصف التاسع", "🎓 بكالوريا علمي", "📚 بكالوريا أدبي", "🚀 الانتقالي"]:
+    # ===== قوائم =====
+    elif text in ["🎓 بكالوريا علمي", "📚 بكالوريا أدبي"]:
         await update.message.reply_text("📚 اختر الكتاب:", reply_markup=BOOKS_MENU)
 
     elif text == "✏️ Exercises":
@@ -193,7 +197,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ===== تشغيل =====
 def main():
-    TOKEN = "8372841480:AAH0wyPsLxQ74ozbQ3wvxFehqV0btOn2XLE"
+    TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+    if not TOKEN:
+        raise ValueError("⚠️ يرجى ضبط TELEGRAM_BOT_TOKEN في متغيرات البيئة!")
+
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
