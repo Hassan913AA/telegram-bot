@@ -1,9 +1,9 @@
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
-from config import get_token, get_admin_id
-from handlers.start import start
-from handlers.broadcast import broadcast_command, handle_audio, handle_photo
-from handlers.menu_handler import handle_menu
-from services.user_service import load_users
+from bot.config import get_token, get_admin_id
+from bot.handlers.start import start
+from bot.handlers.broadcast import broadcast_command, handle_audio, handle_photo
+from bot.handlers.menu_handler import handle_menu
+from bot.services.user_service import load_users
+
 
 def main():
     TOKEN = get_token()
