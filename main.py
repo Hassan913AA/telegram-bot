@@ -10,6 +10,9 @@ def main():
     TOKEN = get_token()
     ADMIN = get_admin_id()
 
+    # عرض جزء من التوكن للتأكد من وجوده
+    print("Token loaded:", TOKEN[:5], "...")
+
     # إنشاء التطبيق
     app = Application.builder().token(TOKEN).build()
 
@@ -27,5 +30,7 @@ def main():
     print("Bot running...")
     app.run_polling()
 
+
 if __name__ == "__main__":
+    print("Checking environment variables...")
     main()
