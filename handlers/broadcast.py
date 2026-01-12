@@ -50,3 +50,24 @@ async def handle_audio(update, context):
 
     context.user_data[WAITING_AUDIO] = False
     await update.message.reply_text("✅ Audio Broadcast Sent")
+    async def handle_text_broadcast(update, context):
+    if update.effective_user.id != context.bot_data["ADMIN"]:
+        return
+    
+    # نتأكد إننا فعلًا ننتظر رسالة نصية
+    if not context.user_data.get(WAITING_TEXT):
+        return
+
+    text = update.message.text
+
+    for uid in USERS:
+        try:
+            await context.bot.send_message(chat_id=uid, text=text)
+        except Exception as e:
+            logger.error(f"Text broadcast failed: {e}")
+
+    # إيقاف وضع الانتظار بعد الإرسال
+    context.user_data[WAITING_TEXT] = False
+    await update.message.reply_text("✅ Text Broadcast Sent")
+
+
