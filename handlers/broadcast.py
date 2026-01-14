@@ -14,6 +14,7 @@ async def broadcast_command(update, context):
 
     await update.message.reply_text("📢 أرسل نص / صورة / صوت الآن")
 
+
 async def handle_photo(update, context):
     if update.effective_user.id != context.bot_data["ADMIN"]:
         return
@@ -31,6 +32,7 @@ async def handle_photo(update, context):
 
     context.user_data[WAITING_PHOTO] = False
     await update.message.reply_text("✅ Photo Broadcast Sent")
+
 
 async def handle_audio(update, context):
     if update.effective_user.id != context.bot_data["ADMIN"]:
@@ -50,11 +52,13 @@ async def handle_audio(update, context):
 
     context.user_data[WAITING_AUDIO] = False
     await update.message.reply_text("✅ Audio Broadcast Sent")
-    async def handle_text_broadcast(update, context):
+
+
+# ====================== النص المفقود هنا ======================
+async def handle_text_broadcast(update, context):
     if update.effective_user.id != context.bot_data["ADMIN"]:
         return
     
-    # نتأكد إننا فعلًا ننتظر رسالة نصية
     if not context.user_data.get(WAITING_TEXT):
         return
 
@@ -66,8 +70,5 @@ async def handle_audio(update, context):
         except Exception as e:
             logger.error(f"Text broadcast failed: {e}")
 
-    # إيقاف وضع الانتظار بعد الإرسال
     context.user_data[WAITING_TEXT] = False
     await update.message.reply_text("✅ Text Broadcast Sent")
-
-
