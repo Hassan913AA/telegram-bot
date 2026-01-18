@@ -1,47 +1,60 @@
+# handlers/menu_handler.py
+
+from config import logger
 from utils.keyboard import (
     get_main_menu,
-    get_admin_menu,
-    get_section_keyboard,
+    get_books_menu,
+    get_admin_broadcast_menu,
+    get_admin_menu
 )
-from services.storage_service import load_sections
-from services.file_service import send_file_by_key
-from utils.logger import get_logger
-
-logger = get_logger(__name__)
-
 
 async def handle_menu(update, context):
-    text = update.message.text
     user_id = update.effective_user.id
-    admin_id = context.bot_data.get("ADMIN")
+    is_admin = user_id == context.bot_data.get("ADMIN")
+    text = update.message.text
 
-    sections = load_sections()
+    # قائمة الكتب
+    if text in ["📘 Grammar PDF", "📗 Vocabulary PDF", "📕 Reading PDF"]:
+        from .pdf_handler import send_grammar, send_vocab, send_reading
+        if text == "📘 Grammar PDF":
+            return await send_grammar(update, context)
+        if text == "📗 Vocabulary PDF":
+            return await send_vocab(update, context)
+        if text == "📕 Reading PDF":
+            return await send_reading(update, context)
 
-    # === الرجوع للقائمة الرئيسية ===
-    if text in ["🏠 Main Menu", "🔙 Back"]:
-        if user_id == admin_id:
-            return await update.message.reply_text(
-                "🏠 القائمة الرئيسية (Admin)",
-                reply_markup=get_admin_menu()
-            )
-        else:
-            return await update.message.reply_text(
-                "🏠 القائمة الرئيسية",
-                reply_markup=get_main_menu()
-            )
+    # العودة للقائمة الرئيسية
+    if text in ["🔙 Back", "🏠 Main Menu", "🔙 رجوع"]:
+        # إذا كان أدمن → لوحة الإدارة، وإلا القائمة العادية
+        menu = get_admin_menu() if is_admin else get_main_menu(is_admin=False)
+        return await update.message.reply_text("القائمة الرئيسية:", reply_markup=menu)
 
-    # === فتح قسم ===
-    if text in sections:
-        return await update.message.reply_text(
-            f"📂 اختر من قسم: {text}",
-            reply_markup=get_section_keyboard(text)
-        )
+    # قسم المعلومات
+    if text == "ℹ️ معلومات":
+        return await update.message.reply_text("🤖 بوت تعليمي يعمل على تنظيم الكتب والبث", 
+                                               reply_markup=get_main_menu(is_admin))
 
-    # === الضغط على زر ملف ===
-    for section_name, buttons in sections.items():
-        for btn in buttons:
-            if btn["title"] == text:
-                return await send_file_by_key(update, context, btn["file_key"])
+    # قسم تصفح الكتب
+    if text == "📚 تصفح الكتب":
+        return await update.message.reply_text("اختر الكتاب:", reply_markup=get_books_menu())
 
-    # === أي شيء غير معروف ===
-    await update.message.reply_text("❓ لم أفهم الأمر، عد للقائمة الرئيسية 🔙")
+    # قسم البحث (يمكن إضافة وظيفة البحث لاحقًا)
+    if text == "🔍 بحث":
+        return await update.message.reply_text("🔍 اكتب كلمة للبحث في الكتب (ميزة قيد التطوير).")
+
+    # لوحة البث للإدمن
+    if is_admin and text == "📢 بث رسالة":
+        from .broadcast import broadcast_command
+        return await broadcast_command(update, context)
+
+    # رفع كتاب (يمكن ربطه لاحقًا مع file_service)
+    if is_admin and text == "📤 رفع كتاب":
+        return await update.message.reply_text("📤 أرسل الملف الآن ليتم رفعه وربطه بالأزرار.")
+
+    # إدارة البوت (لوحة الإدمن)
+    if is_admin and text == "🛠 إدارة البوت":
+        return await update.message.reply_text("🛠 لوحة إدارة البوت:", reply_markup=get_admin_menu())
+
+    # أي نص آخر
+    return await update.message.reply_text("⚠️ لم أفهم هذا الأمر، الرجاء اختيار خيار من القائمة.",
+                                           reply_markup=get_main_menu(is_admin))
