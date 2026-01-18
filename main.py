@@ -46,6 +46,10 @@ def main():
         # Text
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, route_text))
 
+        from handlers.admin_panel import admin_panel
+
+        app.add_handler(CommandHandler("admin", admin_panel))
+
         print("Bot running...")
         app.run_polling()
 
