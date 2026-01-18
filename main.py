@@ -5,7 +5,7 @@ from telegram.ext import (
     filters,
 )
 
-from config import get_token, get_admin_id
+from config import get_token, get_admin_id, WAITING_TEXT
 from handlers.start import start
 from handlers.menu_handler import handle_menu
 from handlers.broadcast import (
@@ -17,15 +17,13 @@ from handlers.broadcast import (
 from services.user_service import load_users
 
 
-WAITING_TEXT = "waiting_text"
-
 async def route_text(update, context):
-    # إذا كان المستخدم في وضع البث
+    # إذا كان المستخدم في وضع بث نص
     if context.user_data.get(WAITING_TEXT):
         await handle_text_broadcast(update, context)
         return
 
-    # غير ذلك → رسالة قائمة
+    # غير ذلك → تعامل مع القوائم والأزرار
     await handle_menu(update, context)
 
 
@@ -37,18 +35,19 @@ def main():
 
     app = Application.builder().token(TOKEN).build()
 
+    # بيانات عامة للبوت
     app.bot_data["ADMIN"] = ADMIN
     app.bot_data["USERS"] = load_users()
 
-    # Commands
+    # أوامر
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("broadcast", broadcast_command))
 
-    # Broadcast media
+    # وسائط البث
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.AUDIO | filters.VOICE, handle_audio))
 
-    # Unified text handler (مهم!)
+    # معالج النص الموحد
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, route_text))
 
     print("Bot running...")
