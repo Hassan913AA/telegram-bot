@@ -1,0 +1,32 @@
+import os
+from config import logger
+
+# مجلد التخزين المؤقت للملفات
+UPLOADS_DIR = "data/uploads"
+
+# التأكد من وجود المجلد عند التشغيل
+os.makedirs(UPLOADS_DIR, exist_ok=True)
+
+def save_uploaded_file(file_obj, filename):
+    """
+    حفظ الملف المرفوع مؤقتًا في uploads/
+    file_obj: object من نوع BytesIO أو أي شيء يحتوي على read()
+    filename: اسم الملف المراد حفظه
+    """
+    path = os.path.join(UPLOADS_DIR, filename)
+    try:
+        with open(path, "wb") as f:
+            f.write(file_obj.read())
+        logger.info(f"File saved: {filename}")
+        return path
+    except Exception as e:
+        logger.error(f"Failed to save file {filename}: {e}")
+        return None
+
+def list_uploaded_files():
+    """إرجاع قائمة بكل الملفات المرفوعة مؤقتًا"""
+    try:
+        return os.listdir(UPLOADS_DIR)
+    except Exception as e:
+        logger.error(f"Failed to list uploaded files: {e}")
+        return []
