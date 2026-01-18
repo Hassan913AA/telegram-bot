@@ -1,6 +1,6 @@
 import json
 import os
-from utils.logger import get_logger
+from utils.logger import logger
 
 logger = get_logger(__name__)
 
@@ -51,3 +51,4 @@ def update_json(filename: str, update_func):
         save_json(filename, data)
     except Exception as e:
         logger.exception(f"Failed to update {filename}: {e}")
+
