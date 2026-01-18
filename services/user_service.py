@@ -1,22 +1,36 @@
-import json
-import os
-from config import logger
+from services.storage_service import load_json, save_json
+from utils.logger import get_logger
 
-USERS_PATH = "storage/users.json"
+logger = get_logger(__name__)
 
-def load_users():
-    if os.path.exists(USERS_PATH):
-        try:
-            with open(USERS_PATH, "r") as f:
-                return set(json.load(f))
-        except Exception as e:
-            logger.error(f"Failed to load users: {e}")
-            return set()
-    return set()
+USERS_FILE = "users.json"
 
-def save_users(users):
+
+def load_users() -> set:
     try:
-        with open(USERS_PATH, "w") as f:
-            json.dump(list(users), f)
+        data = load_json(USERS_FILE, default=[])
+        return set(data)
     except Exception as e:
-        logger.error(f"Failed to save users: {e}")
+        logger.exception(f"Failed to load users: {e}")
+        return set()
+
+
+def save_users(users: set):
+    try:
+        save_json(USERS_FILE, list(users))
+    except Exception as e:
+        logger.exception(f"Failed to save users: {e}")
+
+
+def add_user(user_id: int, users: set):
+    if user_id not in users:
+        users.add(user_id)
+        save_users(users)
+        logger.info(f"New user added: {user_id}")
+
+
+def remove_user(user_id: int, users: set):
+    if user_id in users:
+        users.remove(user_id)
+        save_users(users)
+        logger.info(f"User removed: {user_id}")
