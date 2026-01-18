@@ -13,7 +13,6 @@ def get_admin_id():
         raise ValueError("⚠️ ADMIN_ID غير موجود!")
     return int(admin)
 
-# Constants
 WAITING_TEXT = "waiting_text"
 WAITING_PHOTO = "waiting_photo"
 WAITING_AUDIO = "waiting_audio"
