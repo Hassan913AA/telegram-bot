@@ -248,10 +248,11 @@ from handlers.start import start
 from handlers.menu_handler import handle_menu
 from handlers.broadcast import (
     broadcast_command,
-    handle_photo,
-    handle_audio,
-    handle_text_broadcast
+    handle_broadcast_photo,
+    handle_broadcast_audio,
+    handle_broadcast_text
 )
+
 from handlers.admin_panel import (
     admin_panel,
     add_button,
