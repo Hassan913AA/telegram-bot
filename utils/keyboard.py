@@ -1,21 +1,22 @@
-# utils/keyboard.py
-
 from telegram import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from services.storage_service import load_json
 
-# =======================
-# القوائم العادية
-# =======================
-def get_main_menu(is_admin: bool = False):
+SECTIONS_FILE = "storage/sections.json"
+
+
+def main_menu_keyboard(is_admin: bool = False):
     """
-    القائمة الرئيسية لجميع المستخدمين
+    يبني القائمة الرئيسية من sections.json
     """
-    buttons = [
-        [KeyboardButton("📚 تصفح الكتب"), KeyboardButton("🔍 بحث")],
-        [KeyboardButton("ℹ️ معلومات")]
-    ]
+    data = load_json(SECTIONS_FILE) or {}
+
+    buttons = []
+
+    for section_name in data.keys():
+        buttons.append([KeyboardButton(section_name)])
 
     if is_admin:
-        buttons.append([KeyboardButton("🛠 لوحة الإدارة")])
+        buttons.append([KeyboardButton("🛠 لوحة التحكم")])
 
     return ReplyKeyboardMarkup(
         buttons,
@@ -23,64 +24,28 @@ def get_main_menu(is_admin: bool = False):
         one_time_keyboard=False
     )
 
-def get_books_menu():
-    """
-    قائمة الكتب
-    """
-    buttons = [
-        [KeyboardButton("📘 Grammar PDF"), KeyboardButton("📗 Vocabulary PDF")],
-        [KeyboardButton("📕 Reading PDF"), KeyboardButton("🔙 Back")]
-    ]
-    return ReplyKeyboardMarkup(
-        buttons,
-        resize_keyboard=True,
-        one_time_keyboard=False
-    )
 
-# =======================
-# قوائم البث للإدمن
-# =======================
-def get_admin_broadcast_menu():
+def admin_panel_keyboard():
     """
-    قائمة البث الخاصة بالإدمن
+    لوحة تحكم الإدمن
     """
     buttons = [
-        [KeyboardButton("✍️ إرسال نص")],
-        [KeyboardButton("🖼 إرسال صورة")],
-        [KeyboardButton("🎵 إرسال صوت")],
-        [KeyboardButton("🔙 رجوع")]
-    ]
-    return ReplyKeyboardMarkup(
-        buttons,
-        resize_keyboard=True,
-        one_time_keyboard=False
-    )
-
-# =======================
-# القائمة الخاصة بالإدمن العامة
-# =======================
-def get_admin_menu():
-    """
-    لوحة التحكم الرئيسية للادمن
-    """
-    buttons = [
+        [KeyboardButton("➕ إضافة زر جديد")],
+        [KeyboardButton("📂 رفع ملف وربطه بزر")],
         [KeyboardButton("📢 بث رسالة")],
-        [KeyboardButton("📤 رفع كتاب")],
-        [KeyboardButton("🛠 إدارة البوت")],
-        [KeyboardButton("🔙 رجوع")]
+        [KeyboardButton("🔙 رجوع للقائمة الرئيسية")]
     ]
+
     return ReplyKeyboardMarkup(
         buttons,
         resize_keyboard=True,
         one_time_keyboard=False
     )
 
-# =======================
-# أزرار إنلاين للملفات
-# =======================
+
 def inline_file_actions(file_id: str):
     """
-    أزرار إنلاين خاصة بالملفات (تحميل / حذف مثلاً)
+    أزرار إنلاين للملفات
     """
     return InlineKeyboardMarkup([
         [
