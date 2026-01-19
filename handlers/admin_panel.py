@@ -4,118 +4,195 @@ from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ContextTypes
 from services.storage_service import load_json, save_json
 from utils.keyboard import main_menu_keyboard
+from config import logger
 
 SECTIONS_FILE = "storage/sections.json"
 
 
-def admin_keyboard():
-    return ReplyKeyboardMarkup(
-        [
-            [KeyboardButton("➕ إضافة قائمة أو زر")],
-            [KeyboardButton("✏️ تعديل زر أو قائمة")],
-            [KeyboardButton("🗑 حذف زر أو قائمة")],
-            [KeyboardButton("📂 ربط زر بملف")],
-            [KeyboardButton("📢 بث رسالة")],
-            [KeyboardButton("🔙 رجوع للقائمة الرئيسية")]
-        ],
-        resize_keyboard=True
-    )
-
-
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != context.bot_data["ADMIN"]:
-        return await update.message.reply_text("❌ أنت لست الإدمن.")
+    """
+    لوحة تحكم الإدمن الرئيسية
+    """
+    user_id = update.effective_user.id
+    if user_id != context.bot_data.get("ADMIN"):
+        await update.message.reply_text("❌ أنت لست الإدمن.")
+        return
+
+    buttons = [
+        [KeyboardButton("➕ إضافة زر/قائمة")],
+        [KeyboardButton("✏️ تعديل زر/قائمة")],
+        [KeyboardButton("🗑 حذف زر/قائمة")],
+        [KeyboardButton("📂 رفع ملف وربطه بزر")],
+        [KeyboardButton("📢 إرسال رسالة جماعية")],
+        [KeyboardButton("🔙 رجوع للقائمة الرئيسية")]
+    ]
 
     await update.message.reply_text(
         "🛠 لوحة تحكم الأدمن",
-        reply_markup=admin_keyboard()
+        reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True)
     )
 
 
+# ============================
+# إضافة زر / قائمة
+# ============================
+async def add_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id != context.bot_data.get("ADMIN"):
+        return
+
+    context.user_data["state"] = "ADDING_BUTTON"
+    await update.message.reply_text(
+        "📌 أرسل اسم الزر الجديد أو اسم القائمة الجديدة:"
+    )
+
+
+# ============================
+# رفع ملف وربطه بزر
+# ============================
+async def upload_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id != context.bot_data.get("ADMIN"):
+        return
+
+    context.user_data["state"] = "UPLOADING_FILE"
+    await update.message.reply_text(
+        "📂 أرسل اسم الزر الذي تريد ربط ملف به:"
+    )
+
+
+# ============================
+# تعديل زر أو قائمة
+# ============================
+async def edit_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id != context.bot_data.get("ADMIN"):
+        return
+
+    context.user_data["state"] = "EDITING_BUTTON"
+    await update.message.reply_text(
+        "✏️ أرسل اسم الزر أو القائمة التي تريد تعديلها:"
+    )
+
+
+# ============================
+# حذف زر أو قائمة
+# ============================
+async def delete_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id != context.bot_data.get("ADMIN"):
+        return
+
+    context.user_data["state"] = "DELETING_BUTTON"
+    await update.message.reply_text(
+        "🗑 أرسل اسم الزر أو القائمة التي تريد حذفها:"
+    )
+
+
+# ============================
+# الرجوع للقائمة الرئيسية
+# ============================
+async def back_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "🏠 تم الرجوع للقائمة الرئيسية",
+        reply_markup=main_menu_keyboard(is_admin=True)
+    )
+
+
+# ============================
+# معالجة النصوص داخل لوحة الأدمن
+# ============================
 async def handle_admin_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != context.bot_data["ADMIN"]:
+    user_id = update.effective_user.id
+    if user_id != context.bot_data.get("ADMIN"):
         return
 
     text = update.message.text.strip()
     state = context.user_data.get("state")
-    data = load_json(SECTIONS_FILE) or {}
+    sections = load_json(SECTIONS_FILE) or {}
 
-    # ========== أوامر اللوحة ==========
-    if text == "➕ إضافة قائمة أو زر":
-        context.user_data["state"] = "ADD_NAME"
-        return await update.message.reply_text("✍️ أرسل اسم الزر أو القائمة الجديدة:")
+    # -----------------------------
+    # إضافة زر أو قائمة جديدة
+    # -----------------------------
+    if state == "ADDING_BUTTON":
+        if text in sections:
+            await update.message.reply_text("⚠️ هذا الزر أو القائمة موجود مسبقًا.")
+            return
 
-    if text == "📂 ربط زر بملف":
-        context.user_data["state"] = "LINK_BUTTON"
-        return await update.message.reply_text("🔗 أرسل اسم الزر الذي تريد ربطه بملف:")
-
-    if text == "📢 بث رسالة":
-        context.user_data["state"] = "BROADCAST"
-        return await update.message.reply_text("📢 أرسل النص / الصورة / الصوت للبث:")
-
-    if text == "🔙 رجوع للقائمة الرئيسية":
-        context.user_data.clear()
-        return await update.message.reply_text(
-            "🏠 القائمة الرئيسية",
-            reply_markup=main_menu_keyboard(is_admin=True)
-        )
-
-    # ========== إضافة زر ==========
-    if state == "ADD_NAME":
-        if text in data:
-            return await update.message.reply_text("⚠️ الاسم موجود مسبقًا.")
-
-        context.user_data["new_name"] = text
-        context.user_data["state"] = "ADD_TYPE"
-        return await update.message.reply_text("📌 هل هذا زر قائمة أم زر ملف؟ أرسل: menu أو file")
-
-    if state == "ADD_TYPE":
-        name = context.user_data["new_name"]
-
-        if text.lower() == "menu":
-            data[name] = {"type": "menu", "items": {}}
-            save_json(SECTIONS_FILE, data)
-            context.user_data.clear()
-            return await update.message.reply_text(f"✅ تم إنشاء قائمة: {name}")
-
-        if text.lower() == "file":
-            data[name] = {"type": "file", "path": None, "caption": name}
-            save_json(SECTIONS_FILE, data)
-            context.user_data.clear()
-            return await update.message.reply_text(f"✅ تم إنشاء زر ملف: {name}")
-
-        return await update.message.reply_text("❌ أرسل فقط: menu أو file")
-
-    # ========== ربط زر بملف ==========
-    if state == "LINK_BUTTON":
-        if text not in data or data[text]["type"] != "file":
-            return await update.message.reply_text("❌ هذا ليس زر ملف.")
-
-        context.user_data["target_button"] = text
-        context.user_data["state"] = "WAIT_FILE"
-        return await update.message.reply_text("📎 الآن أرسل الملف:")
-
-
-async def handle_admin_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != context.bot_data["ADMIN"]:
+        sections[text] = {"file": None, "sub_buttons": {}}
+        save_json(SECTIONS_FILE, sections)
+        context.user_data["state"] = None
+        await update.message.reply_text(f"✅ تم إنشاء الزر/القائمة: {text}")
         return
 
-    if context.user_data.get("state") != "WAIT_FILE":
+    # -----------------------------
+    # رفع ملف وربطه بزر
+    # -----------------------------
+    elif state == "UPLOADING_FILE":
+        if text not in sections:
+            await update.message.reply_text("❌ هذا الزر غير موجود.")
+            return
+
+        context.user_data["target_button"] = text
+        context.user_data["state"] = "WAITING_FILE"
+        await update.message.reply_text("📎 الآن أرسل الملف لربطه بهذا الزر:")
+        return
+
+    # -----------------------------
+    # تعديل زر أو قائمة
+    # -----------------------------
+    elif state == "EDITING_BUTTON":
+        if text not in sections:
+            await update.message.reply_text("❌ هذا الزر/القائمة غير موجود.")
+            return
+
+        context.user_data["target_button"] = text
+        context.user_data["state"] = "WAITING_EDIT"
+        await update.message.reply_text(
+            "✏️ أرسل الاسم الجديد للزر/القائمة:"
+        )
+        return
+
+    # -----------------------------
+    # حذف زر أو قائمة
+    # -----------------------------
+    elif state == "DELETING_BUTTON":
+        if text not in sections:
+            await update.message.reply_text("❌ هذا الزر/القائمة غير موجود.")
+            return
+
+        del sections[text]
+        save_json(SECTIONS_FILE, sections)
+        context.user_data["state"] = None
+        await update.message.reply_text(f"✅ تم حذف الزر/القائمة: {text}")
+        return
+
+
+# ============================
+# معالجة الملفات المرفوعة من الأدمن
+# ============================
+async def handle_admin_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id != context.bot_data.get("ADMIN"):
+        return
+
+    if context.user_data.get("state") != "WAITING_FILE":
         return
 
     doc = update.message.document
     if not doc:
-        return await update.message.reply_text("❌ أرسل ملفًا.")
+        await update.message.reply_text("❌ أرسل ملفًا من فضلك.")
+        return
 
-    data = load_json(SECTIONS_FILE) or {}
-    name = context.user_data["target_button"]
+    file_name = doc.file_name
+    file_id = doc.file_id
+    button = context.user_data.get("target_button")
+    sections = load_json(SECTIONS_FILE) or {}
 
-    file = await doc.get_file()
-    path = f"uploads/{doc.file_name}"
-    await file.download_to_drive(path)
+    sections[button]["file"] = {"file_name": file_name, "file_id": file_id}
+    save_json(SECTIONS_FILE, sections)
 
-    data[name]["path"] = path
-    save_json(SECTIONS_FILE, data)
+    context.user_data["state"] = None
+    context.user_data["target_button"] = None
 
-    context.user_data.clear()
-    await update.message.reply_text(f"✅ تم ربط الملف بالزر: {name}")
+    await update.message.reply_text(f"✅ تم ربط الملف بالزر: {button}")
