@@ -1,22 +1,30 @@
 # handlers/menu_handler.py
 
+from telegram import ReplyKeyboardMarkup
 from config import logger
 from services.storage_service import load_json
 from utils.keyboard import main_menu_keyboard, admin_panel_keyboard
+from handlers.broadcast import broadcast_command
 
 SECTIONS_FILE = "storage/sections.json"
 
 
 async def handle_menu(update, context):
+    """
+    التحكم بالقوائم والديناميكيات:
+    - عرض القوائم والملفات للمستخدمين
+    - دعم لوحة تحكم الأدمن
+    - دعم البث الجماعي
+    """
     user_id = update.effective_user.id
     is_admin = user_id == context.bot_data.get("ADMIN")
-    text = update.message.text
+    text = update.message.text.strip()
 
     try:
         data = load_json(SECTIONS_FILE) or {}
 
         # =========================
-        # زر لوحة التحكم (للأدمن)
+        # لوحة تحكم الأدمن
         # =========================
         if is_admin and text == "🛠 لوحة التحكم":
             return await update.message.reply_text(
@@ -39,146 +47,59 @@ async def handle_menu(update, context):
         if text in data:
             section = data[text]
 
-            # إذا كان هذا القسم يحتوي أزرار فرعية
-            if section.get("type") == "menu":
-                buttons = []
-                for name in section.get("items", {}).keys():
-                    buttons.append([name])
-
-                from telegram import ReplyKeyboardMarkup
+            # حالة القوائم الفرعية
+            if section.get("sub_buttons"):
+                buttons = [[name] for name in section["sub_buttons"].keys()]
                 return await update.message.reply_text(
                     f"📂 {text}",
                     reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True)
                 )
 
-            # إذا كان هذا القسم يرسل ملف
-            if section.get("type") == "file":
-                file_path = section.get("path")
-                caption = section.get("caption", "📄 ملف")
-
+            # حالة إرسال ملف
+            if section.get("file"):
+                file_info = section["file"]
                 try:
                     await context.bot.send_document(
                         chat_id=update.effective_chat.id,
-                        document=open(file_path, "rb"),
-                        caption=caption
+                        document=file_info["file_id"],
+                        caption=file_info.get("file_name", "📄 ملف")
                     )
                 except Exception as e:
                     logger.error(f"File send error: {e}")
                     return await update.message.reply_text("❌ فشل إرسال الملف.")
+                return
 
         # =========================
-        # أوامر لوحة تحكم الأدمن
-        # =========================
-        if is_admin:
-            if text == "➕ إضافة زر جديد":
-                context.user_data["admin_mode"] = "add_button"
-                return await update.message.reply_text("✍️ أرسل اسم الزر الجديد:")
-
-            if text == "📂 رفع ملف وربطه بزر":
-                context.user_data["admin_mode"] = "upload_file"
-                return await update.message.reply_text("📎 أرسل الملف الآن:")
-
-            if text == "📢 بث رسالة":
-                from handlers.broadcast import broadcast_command
-                return await broadcast_command(update, context)
-
-        # =========================
-        # أي شيء غير معروف
-        # =========================
-        return await update.message.reply_text(
-            "⚠️ اختر من القائمة فقط.",
-            reply_markup=main_menu_keyboard(is_admin=is_admin)
-        )
-
-    except Exception as e:
-        logger.error(f"handle_menu crash: {e}")
-        return await update.message.reply_text("❌ حصل خطأ داخلي.")
-# handlers/menu_handler.py
-
-from config import logger
-from services.storage_service import load_json
-from utils.keyboard import main_menu_keyboard, admin_panel_keyboard
-
-SECTIONS_FILE = "storage/sections.json"
-
-
-async def handle_menu(update, context):
-    user_id = update.effective_user.id
-    is_admin = user_id == context.bot_data.get("ADMIN")
-    text = update.message.text
-
-    try:
-        data = load_json(SECTIONS_FILE) or {}
-
-        # =========================
-        # زر لوحة التحكم (للأدمن)
-        # =========================
-        if is_admin and text == "🛠 لوحة التحكم":
-            return await update.message.reply_text(
-                "🛠 لوحة تحكم الأدمن:",
-                reply_markup=admin_panel_keyboard()
-            )
-
-        # =========================
-        # الرجوع للقائمة الرئيسية
-        # =========================
-        if text == "🔙 رجوع للقائمة الرئيسية":
-            return await update.message.reply_text(
-                "🏠 القائمة الرئيسية:",
-                reply_markup=main_menu_keyboard(is_admin=is_admin)
-            )
-
-        # =========================
-        # التعامل مع القوائم الديناميكية
-        # =========================
-        if text in data:
-            section = data[text]
-
-            # إذا كان هذا القسم يحتوي أزرار فرعية
-            if section.get("type") == "menu":
-                buttons = []
-                for name in section.get("items", {}).keys():
-                    buttons.append([name])
-
-                from telegram import ReplyKeyboardMarkup
-                return await update.message.reply_text(
-                    f"📂 {text}",
-                    reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True)
-                )
-
-            # إذا كان هذا القسم يرسل ملف
-            if section.get("type") == "file":
-                file_path = section.get("path")
-                caption = section.get("caption", "📄 ملف")
-
-                try:
-                    await context.bot.send_document(
-                        chat_id=update.effective_chat.id,
-                        document=open(file_path, "rb"),
-                        caption=caption
-                    )
-                except Exception as e:
-                    logger.error(f"File send error: {e}")
-                    return await update.message.reply_text("❌ فشل إرسال الملف.")
-
-        # =========================
-        # أوامر لوحة تحكم الأدمن
+        # أوامر الأدمن أثناء استخدام القوائم
         # =========================
         if is_admin:
-            if text == "➕ إضافة زر جديد":
-                context.user_data["admin_mode"] = "add_button"
-                return await update.message.reply_text("✍️ أرسل اسم الزر الجديد:")
+            # إضافة زر/قائمة جديدة
+            if text == "➕ إضافة زر/قائمة":
+                context.user_data["state"] = "ADDING_BUTTON"
+                return await update.message.reply_text("📌 أرسل اسم الزر/القائمة الجديدة:")
 
+            # رفع ملف وربطه بزر
             if text == "📂 رفع ملف وربطه بزر":
-                context.user_data["admin_mode"] = "upload_file"
-                return await update.message.reply_text("📎 أرسل الملف الآن:")
+                context.user_data["state"] = "UPLOADING_FILE"
+                return await update.message.reply_text("📎 أرسل اسم الزر ثم الملف:")
 
-            if text == "📢 بث رسالة":
-                from handlers.broadcast import broadcast_command
-                return await broadcast_command(update, context)
+            # تعديل زر/قائمة
+            if text == "✏️ تعديل زر/قائمة":
+                context.user_data["state"] = "EDITING_BUTTON"
+                return await update.message.reply_text("✏️ أرسل اسم الزر/القائمة للتعديل:")
+
+            # حذف زر/قائمة
+            if text == "🗑 حذف زر/قائمة":
+                context.user_data["state"] = "DELETING_BUTTON"
+                return await update.message.reply_text("🗑 أرسل اسم الزر/القائمة للحذف:")
+
+            # بث رسالة جماعية
+            if text == "📢 إرسال رسالة جماعية":
+                context.user_data["state"] = "BROADCAST"
+                return await update.message.reply_text("📢 أرسل نص أو صورة أو صوت للبث:")
 
         # =========================
-        # أي شيء غير معروف
+        # أي أمر غير معروف
         # =========================
         return await update.message.reply_text(
             "⚠️ اختر من القائمة فقط.",
