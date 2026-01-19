@@ -8,14 +8,22 @@ from config import logger
 
 SECTIONS_FILE = "storage/sections.json"
 
-
+# ============================
+# لوحة تحكم الأدمن الرئيسية
+# ============================
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    لوحة تحكم الإدمن الرئيسية
+    عرض لوحة تحكم الأدمن مع جميع الخيارات المتاحة:
+    ➕ إضافة زر/قائمة
+    ✏️ تعديل زر/قائمة
+    🗑 حذف زر/قائمة
+    📂 رفع ملف وربطه بزر
+    📢 إرسال رسالة جماعية
+    🔙 رجوع للقائمة الرئيسية
     """
     user_id = update.effective_user.id
     if user_id != context.bot_data.get("ADMIN"):
-        await update.message.reply_text("❌ أنت لست الإدمن.")
+        await update.message.reply_text("❌ أنت لست الأدمن.")
         return
 
     buttons = [
@@ -34,9 +42,12 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ============================
-# إضافة زر / قائمة
+# إضافة زر/قائمة جديدة
 # ============================
 async def add_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    تفعيل وضع إضافة زر/قائمة
+    """
     user_id = update.effective_user.id
     if user_id != context.bot_data.get("ADMIN"):
         return
@@ -51,6 +62,9 @@ async def add_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # رفع ملف وربطه بزر
 # ============================
 async def upload_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    تفعيل وضع رفع ملف وربطه بزر موجود
+    """
     user_id = update.effective_user.id
     if user_id != context.bot_data.get("ADMIN"):
         return
@@ -65,6 +79,9 @@ async def upload_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # تعديل زر أو قائمة
 # ============================
 async def edit_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    تفعيل وضع تعديل زر أو قائمة
+    """
     user_id = update.effective_user.id
     if user_id != context.bot_data.get("ADMIN"):
         return
@@ -79,6 +96,9 @@ async def edit_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # حذف زر أو قائمة
 # ============================
 async def delete_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    تفعيل وضع حذف زر أو قائمة
+    """
     user_id = update.effective_user.id
     if user_id != context.bot_data.get("ADMIN"):
         return
@@ -90,9 +110,29 @@ async def delete_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ============================
-# الرجوع للقائمة الرئيسية
+# إرسال رسالة جماعية (Broadcast)
+# ============================
+async def broadcast_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    تفعيل وضع البث الجماعي (نص/صورة/صوت)
+    """
+    user_id = update.effective_user.id
+    if user_id != context.bot_data.get("ADMIN"):
+        return
+
+    context.user_data["state"] = "BROADCAST"
+    await update.message.reply_text(
+        "📢 أرسل نص أو صورة أو صوت للبث إلى جميع المستخدمين:"
+    )
+
+
+# ============================
+# العودة للقائمة الرئيسية
 # ============================
 async def back_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    إعادة الأدمن إلى القائمة الرئيسية
+    """
     await update.message.reply_text(
         "🏠 تم الرجوع للقائمة الرئيسية",
         reply_markup=main_menu_keyboard(is_admin=True)
@@ -100,9 +140,13 @@ async def back_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ============================
-# معالجة النصوص داخل لوحة الأدمن
+# معالجة النصوص حسب حالة الأدمن
 # ============================
 async def handle_admin_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    التعامل مع النصوص الواردة أثناء أي حالة:
+    ADD / EDIT / DELETE / UPLOAD / BROADCAST
+    """
     user_id = update.effective_user.id
     if user_id != context.bot_data.get("ADMIN"):
         return
@@ -112,7 +156,7 @@ async def handle_admin_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     sections = load_json(SECTIONS_FILE) or {}
 
     # -----------------------------
-    # إضافة زر أو قائمة جديدة
+    # إضافة زر/قائمة جديدة
     # -----------------------------
     if state == "ADDING_BUTTON":
         if text in sections:
@@ -139,7 +183,7 @@ async def handle_admin_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # -----------------------------
-    # تعديل زر أو قائمة
+    # تعديل زر/قائمة
     # -----------------------------
     elif state == "EDITING_BUTTON":
         if text not in sections:
@@ -154,7 +198,7 @@ async def handle_admin_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # -----------------------------
-    # حذف زر أو قائمة
+    # حذف زر/قائمة
     # -----------------------------
     elif state == "DELETING_BUTTON":
         if text not in sections:
@@ -167,11 +211,23 @@ async def handle_admin_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"✅ تم حذف الزر/القائمة: {text}")
         return
 
+    # -----------------------------
+    # البث الجماعي
+    # -----------------------------
+    elif state == "BROADCAST":
+        context.user_data["state"] = None
+        context.bot_data["BROADCAST_CONTENT"] = update.message
+        await update.message.reply_text("✅ تم حفظ الرسالة للبث لجميع المستخدمين.")
+        return
+
 
 # ============================
 # معالجة الملفات المرفوعة من الأدمن
 # ============================
 async def handle_admin_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    استقبال الملفات أثناء رفع ملف وربطه بزر
+    """
     user_id = update.effective_user.id
     if user_id != context.bot_data.get("ADMIN"):
         return
@@ -194,5 +250,4 @@ async def handle_admin_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data["state"] = None
     context.user_data["target_button"] = None
-
     await update.message.reply_text(f"✅ تم ربط الملف بالزر: {button}")
