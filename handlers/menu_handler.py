@@ -1,111 +1,52 @@
-# handlers/menu_handler.py
-
-from telegram import ReplyKeyboardMarkup
-from config import logger
 from services.storage_service import load_json
-from utils.keyboard import main_menu_keyboard, admin_panel_keyboard
-from handlers.broadcast import broadcast_command
+from utils.keyboard import build_menu
+from config import logger
 
 SECTIONS_FILE = "storage/sections.json"
 
+def get_node(tree, path):
+    node = tree["root"]
+    for p in path[1:]:
+        node = node["children"][p]
+    return node
 
 async def handle_menu(update, context):
-    """
-    التحكم بالقوائم والديناميكيات:
-    - عرض القوائم والملفات للمستخدمين
-    - دعم لوحة تحكم الأدمن
-    - دعم البث الجماعي
-    """
+    text = update.message.text.strip()
     user_id = update.effective_user.id
     is_admin = user_id == context.bot_data.get("ADMIN")
-    text = update.message.text.strip()
+
+    tree = load_json(SECTIONS_FILE)
+    path = context.user_data.get("path", ["root"])
 
     try:
-        data = load_json(SECTIONS_FILE) or {}
+        if text == "🏠 الرئيسية":
+            context.user_data["path"] = ["root"]
+            node = get_node(tree, ["root"])
+            return await update.message.reply_text("🏠 الرئيسية", reply_markup=build_menu({"children": node["children"], "path": ["root"]}, is_admin))
 
-        # =========================
-        # لوحة تحكم الأدمن
-        # =========================
-        if is_admin and text == "🛠 لوحة التحكم":
-            return await update.message.reply_text(
-                "🛠 لوحة تحكم الأدمن:",
-                reply_markup=admin_panel_keyboard()
-            )
+        if text == "🔙 رجوع":
+            if len(path) > 1:
+                path.pop()
+            context.user_data["path"] = path
+            node = get_node(tree, path)
+            return await update.message.reply_text("🔙 رجوع", reply_markup=build_menu({"children": node["children"], "path": path}, is_admin))
 
-        # =========================
-        # الرجوع للقائمة الرئيسية
-        # =========================
-        if text == "🔙 رجوع للقائمة الرئيسية":
-            return await update.message.reply_text(
-                "🏠 القائمة الرئيسية:",
-                reply_markup=main_menu_keyboard(is_admin=is_admin)
-            )
+        node = get_node(tree, path)
 
-        # =========================
-        # التعامل مع القوائم الديناميكية
-        # =========================
-        if text in data:
-            section = data[text]
+        if text in node["children"]:
+            target = node["children"][text]
 
-            # حالة القوائم الفرعية
-            if section.get("sub_buttons"):
-                buttons = [[name] for name in section["sub_buttons"].keys()]
-                return await update.message.reply_text(
-                    f"📂 {text}",
-                    reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True)
-                )
+            if target["type"] == "menu":
+                path.append(text)
+                context.user_data["path"] = path
+                return await update.message.reply_text(f"📂 {text}", reply_markup=build_menu({"children": target["children"], "path": path}, is_admin))
 
-            # حالة إرسال ملف
-            if section.get("file"):
-                file_info = section["file"]
-                try:
-                    await context.bot.send_document(
-                        chat_id=update.effective_chat.id,
-                        document=file_info["file_id"],
-                        caption=file_info.get("file_name", "📄 ملف")
-                    )
-                except Exception as e:
-                    logger.error(f"File send error: {e}")
-                    return await update.message.reply_text("❌ فشل إرسال الملف.")
+            if target["type"] == "file":
+                await context.bot.send_document(update.effective_chat.id, target["file_id"], caption=target.get("file_name", "📄 ملف"))
                 return
 
-        # =========================
-        # أوامر الأدمن أثناء استخدام القوائم
-        # =========================
-        if is_admin:
-            # إضافة زر/قائمة جديدة
-            if text == "➕ إضافة زر/قائمة":
-                context.user_data["state"] = "ADDING_BUTTON"
-                return await update.message.reply_text("📌 أرسل اسم الزر/القائمة الجديدة:")
-
-            # رفع ملف وربطه بزر
-            if text == "📂 رفع ملف وربطه بزر":
-                context.user_data["state"] = "UPLOADING_FILE"
-                return await update.message.reply_text("📎 أرسل اسم الزر ثم الملف:")
-
-            # تعديل زر/قائمة
-            if text == "✏️ تعديل زر/قائمة":
-                context.user_data["state"] = "EDITING_BUTTON"
-                return await update.message.reply_text("✏️ أرسل اسم الزر/القائمة للتعديل:")
-
-            # حذف زر/قائمة
-            if text == "🗑 حذف زر/قائمة":
-                context.user_data["state"] = "DELETING_BUTTON"
-                return await update.message.reply_text("🗑 أرسل اسم الزر/القائمة للحذف:")
-
-            # بث رسالة جماعية
-            if text == "📢 إرسال رسالة جماعية":
-                context.user_data["state"] = "BROADCAST"
-                return await update.message.reply_text("📢 أرسل نص أو صورة أو صوت للبث:")
-
-        # =========================
-        # أي أمر غير معروف
-        # =========================
-        return await update.message.reply_text(
-            "⚠️ اختر من القائمة فقط.",
-            reply_markup=main_menu_keyboard(is_admin=is_admin)
-        )
+        return await update.message.reply_text("اختر من القائمة فقط")
 
     except Exception as e:
-        logger.error(f"handle_menu crash: {e}")
-        return await update.message.reply_text("❌ حصل خطأ داخلي.")
+        logger.error(e)
+        await update.message.reply_text("❌ خطأ داخلي")
