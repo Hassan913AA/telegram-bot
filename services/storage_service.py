@@ -1,20 +1,19 @@
-import json
-import os
+import json, os
 from utils.logger import logger
 
 def load_json(path):
-    if os.path.exists(path):
-        try:
-            with open(path, "r") as f:
-                return json.load(f)
-        except Exception as e:
-            logger.error(f"Failed to load {path}: {e}")
-            return []
-    return []
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(e)
+        return {}
 
 def save_json(path, data):
     try:
-        with open(path, "w") as f:
-            json.dump(data, f, indent=2)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
     except Exception as e:
-        logger.error(f"Failed to save {path}: {e}")
+        logger.error(e)
