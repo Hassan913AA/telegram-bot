@@ -73,6 +73,12 @@ async def handle_menu(update, context):
                     logger.error(f"File send error: {e}")
                     return await update.message.reply_text("❌ فشل إرسال الملف.")
                 return
+    
+        if is_admin and text == "📁 إنشاء قائمة":
+            context.user_data["admin_step"] = "ask_menu_location"
+            return await update.message.reply_text(
+                "📍 أرسل موقع القائمة (مثال: الرئيسية/الدروس/بايثون):"
+            )
 
         if is_admin and text == "🛠 لوحة التحكم":
             from utils.keyboard import admin_panel_keyboard
@@ -89,3 +95,4 @@ async def handle_menu(update, context):
     except Exception as e:
         logger.error(f"handle_menu crash: {e}")
         return await update.message.reply_text("❌ حصل خطأ داخلي.")
+
