@@ -20,7 +20,6 @@ async def show_current_menu(update, context, data, path, is_admin):
     for name in section.keys():
         buttons.append([KeyboardButton(name)])
 
-    # أزرار التنقل
     if path:
         buttons.append([KeyboardButton("🔙 رجوع")])
     buttons.append([KeyboardButton("🏠 القائمة الرئيسية")])
@@ -40,14 +39,12 @@ async def handle_menu(update, context):
         data = load_json(SECTIONS_FILE) or {}
         path = context.user_data.get("path", [])
 
-        # ===== رجوع =====
         if text == "🔙 رجوع":
             if path:
                 path.pop()
                 context.user_data["path"] = path
             return await show_current_menu(update, context, data, path, is_admin)
 
-        # ===== رجوع للقائمة الرئيسية =====
         if text == "🏠 القائمة الرئيسية":
             context.user_data["path"] = []
             return await update.message.reply_text(
@@ -55,19 +52,16 @@ async def handle_menu(update, context):
                 reply_markup=main_menu_keyboard(is_admin=is_admin)
             )
 
-        # ===== دخول عنصر =====
         section = get_section_by_path(data, path)
 
         if text in section:
             item = section[text]
 
-            # لو فيه قائمة فرعية
             if item.get("sub_buttons"):
                 path.append(text)
                 context.user_data["path"] = path
                 return await show_current_menu(update, context, data, path, is_admin)
 
-            # لو فيه ملف
             if item.get("file"):
                 try:
                     await context.bot.send_document(
@@ -80,14 +74,12 @@ async def handle_menu(update, context):
                     return await update.message.reply_text("❌ فشل إرسال الملف.")
                 return
 
-        # ===== أوامر الأدمن =====
-        if is_admin:
-            if text == "🛠 لوحة التحكم":
-                from utils.keyboard import admin_panel_keyboard
-                return await update.message.reply_text(
-                    "🛠 لوحة تحكم الأدمن:",
-                    reply_markup=admin_panel_keyboard()
-                )
+        if is_admin and text == "🛠 لوحة التحكم":
+            from utils.keyboard import admin_panel_keyboard
+            return await update.message.reply_text(
+                "🛠 لوحة تحكم الأدمن:",
+                reply_markup=admin_panel_keyboard()
+            )
 
         return await update.message.reply_text(
             "⚠️ اختر من القائمة فقط.",
