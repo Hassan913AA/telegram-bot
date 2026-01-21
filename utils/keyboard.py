@@ -1,17 +1,57 @@
-from telegram import ReplyKeyboardMarkup, KeyboardButton
+from telegram import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from services.storage_service import load_json
 
-def build_menu(node, is_admin=False):
+SECTIONS_FILE = "storage/sections.json"
+
+
+def main_menu_keyboard(is_admin: bool = False):
+    """
+    يبني القائمة الرئيسية من sections.json
+    """
+    data = load_json(SECTIONS_FILE) or {}
+
     buttons = []
 
-    for name in node.get("children", {}).keys():
-        buttons.append([KeyboardButton(name)])
-
-    if node.get("path") != ["root"]:
-        buttons.append([KeyboardButton("🔙 رجوع")])
-
-    buttons.append([KeyboardButton("🏠 الرئيسية")])
+    for section_name in data.keys():
+        buttons.append([KeyboardButton(section_name)])
 
     if is_admin:
         buttons.append([KeyboardButton("🛠 لوحة التحكم")])
 
-    return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
+    return ReplyKeyboardMarkup(
+        buttons,
+        resize_keyboard=True,
+        one_time_keyboard=False
+    )
+
+
+def admin_panel_keyboard():
+    """
+    لوحة تحكم الإدمن
+    """
+    buttons = [
+        [KeyboardButton("➕ إضافة زر/قائمة")],
+        [KeyboardButton("✏️ تعديل زر/قائمة")],
+        [KeyboardButton("🗑 حذف زر/قائمة")],
+        [KeyboardButton("📂 رفع ملف وربطه بزر")],
+        [KeyboardButton("📢 إرسال رسالة جماعية")],
+        [KeyboardButton("🔙 رجوع للقائمة الرئيسية")]
+    ]
+
+    return ReplyKeyboardMarkup(
+        buttons,
+        resize_keyboard=True,
+        one_time_keyboard=False
+    )
+
+
+def inline_file_actions(file_id: str):
+    """
+    أزرار إنلاين للملفات
+    """
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("⬇️ تحميل", callback_data=f"download:{file_id}"),
+            InlineKeyboardButton("🗑 حذف", callback_data=f"delete:{file_id}")
+        ]
+    ])
