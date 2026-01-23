@@ -1,45 +1,54 @@
 import os
+import shutil
 from telegram import Update
 from telegram.ext import ContextTypes
 from utils.keyboard import (
     main_menu_keyboard,
     admin_panel_keyboard,
     add_menu_keyboard,
-    edit_menu_keyboard,
-    delete_menu_keyboard,
     broadcast_keyboard,
 )
 from services.storage_service import load_json, save_json
-ADMIN_ID = int(os.getenv("ADMIN_ID"))
-import shutil
-import os
+
+# ================= إعدادات =================
+ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 
 SECTIONS_FILE = "storage/sections.json"
 BACKUP_FILE = "storage/sections_backup.json"
 
 
+# ================= نسخ احتياطي =================
 def backup_sections():
     if os.path.exists(SECTIONS_FILE):
         shutil.copy(SECTIONS_FILE, BACKUP_FILE)
 
 
+# ================= البحث داخل الشجرة =================
 def get_node(data, path):
+    """
+    يعيد العقدة الموجودة في المسار path
+    إذا لم يوجد المسار يرجع {} بدل crash
+    """
     node = data
     for p in path:
         node = node.get(p, {}).get("sub", {})
     return node
 
 
+# ================= التحقق من صلاحية الأدمن =================
+def is_admin(user_id):
+    return user_id == ADMIN_ID
+
+
 # ================= لوحة الأدمن =================
 async def open_admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
+    if not is_admin(update.effective_user.id):
         await update.message.reply_text("❌ لا تملك صلاحية الأدمن.")
         return
-
     await update.message.reply_text("🛠 لوحة الأدمن", reply_markup=admin_panel_keyboard())
 
 
-# ================= إضافة زر / قائمة =================
+# ================= إضافة قائمة =================
 async def admin_add_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     context.user_data["state"] = "ADD_MENU"
@@ -57,23 +66,30 @@ async def receive_parent_path(update: Update, context: ContextTypes.DEFAULT_TYPE
         context.user_data["path"] = []
     else:
         context.user_data["path"] = text.split("/")
-
     context.user_data["state"] = "WAIT_NEW_LIST_NAME"
     await update.message.reply_text("✏️ اكتب اسم القائمة الجديدة")
 
 
 async def receive_new_list_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    backup_sections()
     name = update.message.text.strip()
     data = load_json(SECTIONS_FILE) or {}
     node = get_node(data, context.user_data["path"])
 
+    # ===== تحقق من الاسم المكرر =====
+    if name in node:
+        await update.message.reply_text("⚠️ الاسم موجود مسبقًا، اختر اسمًا آخر")
+        return
+
+    # ===== النسخ الاحتياطي =====
+    backup_sections()
+
+    # ===== إنشاء القائمة الجديدة =====
     node[name] = {
         "file": None,
         "sub": {
             "🔙 رجوع": {"file": None, "sub": {}},
-            "🏠 رجوع للقائمة الرئيسية": {"file": None, "sub": {}}
-        }
+            "🏠 رجوع للقائمة الرئيسية": {"file": None, "sub": {}},
+        },
     }
 
     save_json(SECTIONS_FILE, data)
@@ -99,7 +115,7 @@ async def receive_broadcast_text(update: Update, context: ContextTypes.DEFAULT_T
 
     for uid in users:
         try:
-            await context.bot.send_message(uid, text)
+            await context.bot.send_message(int(uid), text)
         except:
             pass
 
@@ -116,7 +132,8 @@ async def undo_last(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ لا يوجد نسخة احتياطية", reply_markup=admin_panel_keyboard())
 
 
-# ================= رجوع =================
+# ================= رجوع للقائمة الرئيسية =================
 async def back_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
-    await update.message.reply_text("🏠 رجوع للقائمة الرئيسية", reply_markup=main_menu_keyboard(is_admin=True))
+    user_is_admin = is_admin(update.effective_user.id)
+    await update.message.reply_text("🏠 رجوع للقائمة الرئيسية", reply_markup=main_menu_keyboard(is_admin=user_is_admin))
