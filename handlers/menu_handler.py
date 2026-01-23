@@ -1,7 +1,7 @@
 from telegram import ReplyKeyboardMarkup, KeyboardButton
 from config import logger
 from services.storage_service import load_json
-from utils.keyboard import main_menu_keyboard
+from utils.keyboard import main_menu_keyboard, admin_panel_keyboard
 
 SECTIONS_FILE = "storage/sections.json"
 
@@ -20,8 +20,15 @@ async def show_current_menu(update, context, data, path, is_admin):
     for name in section.keys():
         buttons.append([KeyboardButton(name)])
 
+    # 🔙 رجوع خطوة واحدة
     if path:
         buttons.append([KeyboardButton("🔙 رجوع")])
+
+    # 🔙 رجوع للأدمن فقط
+    if is_admin:
+        buttons.append([KeyboardButton("🔙 رجوع للأدمن")])
+
+    # 🏠 رجوع للرئيسية
     buttons.append([KeyboardButton("🏠 القائمة الرئيسية")])
 
     return await update.message.reply_text(
@@ -39,12 +46,7 @@ async def handle_menu(update, context):
         data = load_json(SECTIONS_FILE) or {}
         path = context.user_data.get("path", [])
 
-        if text == "🔙 رجوع":
-            if path:
-                path.pop()
-                context.user_data["path"] = path
-            return await show_current_menu(update, context, data, path, is_admin)
-
+        # 🏠 رجوع للقائمة الرئيسية
         if text == "🏠 القائمة الرئيسية":
             context.user_data["path"] = []
             return await update.message.reply_text(
@@ -52,16 +54,39 @@ async def handle_menu(update, context):
                 reply_markup=main_menu_keyboard(is_admin=is_admin)
             )
 
+        # 🔙 رجوع خطوة
+        if text == "🔙 رجوع":
+            if path:
+                path.pop()
+                context.user_data["path"] = path
+            return await show_current_menu(update, context, data, path, is_admin)
+
+        # 🔙 رجوع للأدمن
+        if text == "🔙 رجوع للأدمن" and is_admin:
+            context.user_data["path"] = []
+            return await update.message.reply_text(
+                "🛠 لوحة الأدمن:",
+                reply_markup=admin_panel_keyboard()
+            )
+
+        # دخول من 📂 القوائم إلى الشجرة
+        if text == "📂 القوائم":
+            context.user_data["path"] = []
+            return await show_current_menu(update, context, data, [], is_admin)
+
         section = get_section_by_path(data, path)
 
+        # دخول عنصر من الشجرة
         if text in section:
             item = section[text]
 
+            # 📂 قائمة فرعية
             if item.get("sub_buttons"):
                 path.append(text)
                 context.user_data["path"] = path
                 return await show_current_menu(update, context, data, path, is_admin)
 
+            # 📎 زر يرسل ملف
             if item.get("file"):
                 try:
                     await context.bot.send_document(
@@ -73,15 +98,9 @@ async def handle_menu(update, context):
                     logger.error(f"File send error: {e}")
                     return await update.message.reply_text("❌ فشل إرسال الملف.")
                 return
-    
-        if is_admin and text == "📁 إنشاء قائمة":
-            context.user_data["admin_step"] = "ask_menu_location"
-            return await update.message.reply_text(
-                "📍 أرسل موقع القائمة (مثال: الرئيسية/الدروس/بايثون):"
-            )
 
-        if is_admin and text == "🛠 لوحة التحكم":
-            from utils.keyboard import admin_panel_keyboard
+        # 🛠 دخول لوحة الأدمن
+        if is_admin and text == "🛠 لوحة الأدمن":
             return await update.message.reply_text(
                 "🛠 لوحة تحكم الأدمن:",
                 reply_markup=admin_panel_keyboard()
@@ -95,4 +114,3 @@ async def handle_menu(update, context):
     except Exception as e:
         logger.error(f"handle_menu crash: {e}")
         return await update.message.reply_text("❌ حصل خطأ داخلي.")
-
