@@ -1,3 +1,4 @@
+import os
 from telegram import Update
 from telegram.ext import ContextTypes
 from utils.keyboard import (
@@ -9,7 +10,7 @@ from utils.keyboard import (
     broadcast_keyboard,
 )
 from services.storage_service import load_json, save_json
-from config import ADMIN_ID
+ADMIN_ID = int(os.getenv("ADMIN_ID"))
 import shutil
 import os
 
