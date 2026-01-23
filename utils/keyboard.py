@@ -4,15 +4,12 @@ from telegram import ReplyKeyboardMarkup, KeyboardButton
 # القائمة الرئيسية
 # ==========================
 def main_menu_keyboard(is_admin=False):
-    """
-    القائمة الرئيسية للمستخدم أو الأدمن
-    """
     buttons = [
-        [KeyboardButton("📂 القوائم")],  # للمستخدم العادي
+        [KeyboardButton("📂 القوائم")],
     ]
 
     if is_admin:
-        buttons.append([KeyboardButton("🛠 لوحة الأدمن")])  # يظهر فقط للأدمن
+        buttons.append([KeyboardButton("🛠 لوحة الأدمن")])
 
     return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
 
@@ -21,9 +18,6 @@ def main_menu_keyboard(is_admin=False):
 # لوحة الأدمن الرئيسية
 # ==========================
 def admin_panel_keyboard():
-    """
-    الكيبورد الرئيسي للأدمن
-    """
     buttons = [
         [KeyboardButton("➕ إضافة زر / قائمة")],
         [KeyboardButton("✏️ تعديل زر / قائمة")],
@@ -36,4 +30,74 @@ def admin_panel_keyboard():
 
 # ==========================
 # إضافة زر / قائمة
-# =========================
+# ==========================
+def add_menu_keyboard():
+    buttons = [
+        [KeyboardButton("📁 إنشاء قائمة جديدة")],
+        [KeyboardButton("📎 إنشاء زر يرسل ملف")],
+        [KeyboardButton("🔙 رجوع للوحة الأدمن")]
+    ]
+    return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
+
+
+# ==========================
+# التعديل
+# ==========================
+def edit_menu_keyboard():
+    buttons = [
+        [KeyboardButton("✏️ تعديل اسم زر")],
+        [KeyboardButton("📂 نقل زر إلى قائمة أخرى")],
+        [KeyboardButton("📁 تعديل اسم قائمة")],
+        [KeyboardButton("↩️ التراجع عن آخر تعديل")],
+        [KeyboardButton("🔙 رجوع للوحة الأدمن")]
+    ]
+    return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
+
+
+# ==========================
+# الحذف
+# ==========================
+def delete_menu_keyboard():
+    buttons = [
+        [KeyboardButton("🗑 حذف زر")],
+        [KeyboardButton("🗑 حذف قائمة كاملة")],
+        [KeyboardButton("🔙 رجوع للوحة الأدمن")]
+    ]
+    return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
+
+
+# ==========================
+# الإرسال الجماعي
+# ==========================
+def broadcast_keyboard():
+    buttons = [
+        [KeyboardButton("✉️ نص")],
+        [KeyboardButton("🖼 صورة")],
+        [KeyboardButton("🎵 صوت")],
+        [KeyboardButton("🔙 رجوع للوحة الأدمن")]
+    ]
+    return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
+
+
+# ==========================
+# كيبورد داخل القوائم (للمستخدم)
+# ==========================
+def user_menu_keyboard(menu_buttons, is_admin=False):
+    buttons = []
+
+    for btn in menu_buttons:
+        buttons.append([KeyboardButton(btn)])
+
+    if is_admin:
+        buttons.append([KeyboardButton("🔙 رجوع (أدمن)")])
+    else:
+        buttons.append([KeyboardButton("🔙 رجوع")])
+
+    return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
+
+
+# ==========================
+# زر رجوع عام
+# ==========================
+def back_keyboard():
+    return ReplyKeyboardMarkup([[KeyboardButton("🔙 رجوع")]], resize_keyboard=True)
