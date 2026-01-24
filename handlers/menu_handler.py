@@ -6,10 +6,11 @@ from utils.keyboard import main_menu_keyboard, admin_panel_keyboard
 SECTIONS_FILE = "storage/sections.json"
 
 
+# ================= أدوات الشجرة =================
 def get_section_by_path(data, path):
     current = data
     for p in path:
-        current = current.get(p, {}).get("sub_buttons", {})
+        current = current.get(p, {}).get("sub", {})
     return current
 
 
@@ -17,10 +18,11 @@ async def show_current_menu(update, context, data, path, is_admin):
     section = get_section_by_path(data, path)
     buttons = []
 
+    # عرض عناصر الشجرة
     for name in section.keys():
         buttons.append([KeyboardButton(name)])
 
-    # 🔙 رجوع خطوة واحدة
+    # 🔙 رجوع خطوة واحدة (للجميع)
     if path:
         buttons.append([KeyboardButton("🔙 رجوع")])
 
@@ -37,6 +39,7 @@ async def show_current_menu(update, context, data, path, is_admin):
     )
 
 
+# ================= المعالج الرئيسي =================
 async def handle_menu(update, context):
     user_id = update.effective_user.id
     is_admin = user_id == context.bot_data.get("ADMIN")
@@ -46,7 +49,7 @@ async def handle_menu(update, context):
         data = load_json(SECTIONS_FILE) or {}
         path = context.user_data.get("path", [])
 
-        # 🏠 رجوع للقائمة الرئيسية
+        # 🏠 رجوع للرئيسية
         if text == "🏠 القائمة الرئيسية":
             context.user_data["path"] = []
             return await update.message.reply_text(
@@ -69,7 +72,7 @@ async def handle_menu(update, context):
                 reply_markup=admin_panel_keyboard()
             )
 
-        # دخول من 📂 القوائم إلى الشجرة
+        # 📂 دخول من القائمة الرئيسية إلى الشجرة
         if text == "📂 القوائم":
             context.user_data["path"] = []
             return await show_current_menu(update, context, data, [], is_admin)
@@ -81,7 +84,7 @@ async def handle_menu(update, context):
             item = section[text]
 
             # 📂 قائمة فرعية
-            if item.get("sub_buttons"):
+            if item.get("sub"):
                 path.append(text)
                 context.user_data["path"] = path
                 return await show_current_menu(update, context, data, path, is_admin)
@@ -99,13 +102,14 @@ async def handle_menu(update, context):
                     return await update.message.reply_text("❌ فشل إرسال الملف.")
                 return
 
-        # 🛠 دخول لوحة الأدمن
+        # 🛠 دخول لوحة الأدمن من الرئيسية
         if is_admin and text == "🛠 لوحة الأدمن":
             return await update.message.reply_text(
                 "🛠 لوحة تحكم الأدمن:",
                 reply_markup=admin_panel_keyboard()
             )
 
+        # أي شيء خارج المنطق
         return await update.message.reply_text(
             "⚠️ اختر من القائمة فقط.",
             reply_markup=main_menu_keyboard(is_admin=is_admin)
