@@ -1,9 +1,12 @@
 {
   "version": 1,
   "files": [],
+  "id": "file_001"
   "meta": {
     "created_by": "bot",
     "description": "تخزين روابط الملفات وربطها بالأزرار والأقسام",
     "last_updated": null
+    
   }
 }
+
