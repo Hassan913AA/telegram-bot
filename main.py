@@ -1,6 +1,11 @@
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
+from telegram.ext import  CallbackQueryHandler, Application, CommandHandler, MessageHandler, filters,ApplicationBuilder
 from config import get_token, get_admin_id, logger
-
+from handlers.admin_add_menu import (
+    open_admin_panel,
+    handle_admin_text,
+    handle_admin_file,
+    handle_admin_buttons
+)
 from handlers.start import start
 from handlers.menu_handler import handle_menu
 from handlers.broadcast import (
@@ -75,6 +80,19 @@ def main():
 
         logger.info("Bot started successfully")
         print("🤖 Bot is running...")
+        app = ApplicationBuilder().token(TOKEN).build()
+        
+        # أوامر
+        app.add_handler(CommandHandler("admin", open_admin_panel))
+        
+        # أزرار لوحة الإدارة
+        app.add_handler(CallbackQueryHandler(handle_admin_buttons))
+        
+        # نصوص
+        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_admin_text))
+        
+        # ملفات
+        app.add_handler(MessageHandler(filters.Document.ALL | filters.VIDEO | filters.AUDIO, handle_admin_file))
 
         app.run_polling()
 
