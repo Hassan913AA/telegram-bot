@@ -18,11 +18,10 @@ from handlers.broadcast import (
 )
 
 from handlers.admin_panel import (
-    admin_panel,
-    add_button,
-    upload_file,
+    open_admin_panel,
     back_to_main
 )
+
 
 from services.user_service import load_users
 
@@ -63,7 +62,7 @@ def main():
 
         # ===== أوامر =====
         app.add_handler(CommandHandler("start", start))
-        app.add_handler(CommandHandler("admin", admin_panel))
+        app.add_handler(CommandHandler("admin", open_admin_panel))
         app.add_handler(CommandHandler("broadcast", broadcast_command))
 
         # ===== أزرار لوحة الأدمن =====
