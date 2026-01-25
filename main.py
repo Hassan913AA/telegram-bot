@@ -1,11 +1,13 @@
-from telegram.ext import  CallbackQueryHandler, Application, CommandHandler, MessageHandler, filters,ApplicationBuilder
+from telegram.ext import CallbackQueryHandler, ApplicationBuilder, CommandHandler, MessageHandler, filters
 from config import get_token, get_admin_id, logger
+
 from handlers.admin_add_menu import (
     open_admin_panel,
     handle_admin_text,
     handle_admin_file,
-    handle_admin_buttons
+    handle_user_button   # بدل handle_admin_buttons الغير موجودة
 )
+
 from handlers.start import start
 from handlers.menu_handler import handle_menu
 from handlers.broadcast import (
@@ -14,13 +16,12 @@ from handlers.broadcast import (
     handle_broadcast_audio,
     handle_broadcast_text
 )
+
 from handlers.admin_panel import (
     admin_panel,
     add_button,
     upload_file,
-    back_to_main,
-    handle_admin_text,
-    handle_admin_file
+    back_to_main
 )
 
 from services.user_service import load_users
@@ -36,12 +37,12 @@ async def route_text(update, context):
             await handle_broadcast_text(update, context)
             return
 
-        # ===== حالات الأدمن الأخرى =====
+        # ===== حالات الأدمن =====
         if state and state.startswith("ADMIN_"):
             await handle_admin_text(update, context)
             return
 
-        # ===== الوضع العادي (المستخدمين) =====
+        # ===== المستخدمين العاديين =====
         await handle_menu(update, context)
 
     except Exception as e:
@@ -54,7 +55,7 @@ def main():
         TOKEN = get_token()
         ADMIN = get_admin_id()
 
-        app = Application.builder().token(TOKEN).build()
+        app = ApplicationBuilder().token(TOKEN).build()
 
         # تخزين بيانات عامة للبوت
         app.bot_data["ADMIN"] = ADMIN
@@ -71,28 +72,18 @@ def main():
         app.add_handler(MessageHandler(filters.Regex("^🔙 رجوع للقائمة الرئيسية$"), back_to_main))
 
         # ===== ملفات وصور وصوت =====
-        app.add_handler(MessageHandler(filters.Document.ALL, handle_admin_file))
+        app.add_handler(MessageHandler(filters.Document.ALL | filters.VIDEO | filters.AUDIO, handle_admin_file))
         app.add_handler(MessageHandler(filters.PHOTO, handle_broadcast_photo))
         app.add_handler(MessageHandler(filters.AUDIO | filters.VOICE, handle_broadcast_audio))
 
         # ===== نصوص عامة =====
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, route_text))
 
+        # ===== ضغط المستخدمين على الأزرار =====
+        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_user_button))
+
         logger.info("Bot started successfully")
         print("🤖 Bot is running...")
-        app = ApplicationBuilder().token(TOKEN).build()
-        
-        # أوامر
-        app.add_handler(CommandHandler("admin", open_admin_panel))
-        
-        # أزرار لوحة الإدارة
-        app.add_handler(CallbackQueryHandler(handle_admin_buttons))
-        
-        # نصوص
-        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_admin_text))
-        
-        # ملفات
-        app.add_handler(MessageHandler(filters.Document.ALL | filters.VIDEO | filters.AUDIO, handle_admin_file))
 
         app.run_polling()
 
