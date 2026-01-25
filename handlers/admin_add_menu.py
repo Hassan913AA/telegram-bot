@@ -1,36 +1,148 @@
-from services.storage_service import load_json, save_json
-from telegram import ReplyKeyboardMarkup, KeyboardButton
+# admin_add_menu.py
 
-SECTIONS_FILE = "storage/sections.json"
+from enum import Enum, auto
+
+# =========================
+# الحالات (State Machine)
+# =========================
+
+class AdminState(Enum):
+    NONE = auto()
+    ADD_MENU = auto()
+    ADD_FILE_BUTTON = auto()
+    EDIT_BUTTON = auto()
+    MOVE_BUTTON = auto()
+    DELETE_BUTTON = auto()
+    DELETE_MENU = auto()
+    UNDO = auto()
+    BROADCAST = auto()
 
 
-def get_section_by_path(data, path):
-    current = data
-    for p in path:
-        current = current.setdefault(p, {}).setdefault("sub_buttons", {})
-    return current
+# =========================
+# ذاكرة الجلسة (مؤقتة)
+# =========================
+
+admin_sessions = {}
+"""
+admin_sessions = {
+    admin_id: {
+        "state": AdminState.ADD_MENU,
+        "data": {}
+    }
+}
+"""
 
 
-async def handle_add_menu(update, context):
-    text = update.message.text.strip()
-    data = load_json(SECTIONS_FILE) or {}
+# =========================
+# فتح لوحة الأدمن
+# =========================
 
-    # المرحلة 1: اختيار الموقع
-    if context.user_data.get("admin_step") == "ask_menu_location":
-        context.user_data["new_menu_path"] = text.split("/")
-        context.user_data["admin_step"] = "ask_menu_name"
-        return await update.message.reply_text("✍️ أرسل اسم القائمة الجديدة:")
+def open_admin_panel(update, context):
+    admin_id = update.effective_user.id
 
-    # المرحلة 2: اسم القائمة
-    if context.user_data.get("admin_step") == "ask_menu_name":
-        path = context.user_data.get("new_menu_path", [])
-        section = get_section_by_path(data, path)
+    admin_sessions[admin_id] = {
+        "state": AdminState.NONE,
+        "data": {}
+    }
 
-        section[text] = {
-            "sub_buttons": {}
-        }
+    update.message.reply_text(
+        "🛠 لوحة التحكم\n"
+        "اختر ما تريد:\n"
+        "- إضافة قائمة\n"
+        "- تعديل زر\n"
+        "- حذف\n"
+        "- بث رسالة"
+    )
 
-        save_json(SECTIONS_FILE, data)
-        context.user_data.clear()
 
-        return await update.message.reply_text("✅ تم إنشاء القائمة بنجاح مع أزرار الرجوع تلقائيًا.")
+# =========================
+# التعامل مع النصوص
+# =========================
+
+def handle_admin_text(update, context):
+    admin_id = update.effective_user.id
+    text = update.message.text
+
+    if admin_id not in admin_sessions:
+        return
+
+    session = admin_sessions[admin_id]
+    state = session["state"]
+
+    # -------- ADD MENU --------
+    if state == AdminState.ADD_MENU:
+        menu_name = text.strip()
+        session["data"]["menu_name"] = menu_name
+
+        # لاحقًا: إنشاء القائمة فعليًا
+        session["state"] = AdminState.ADD_FILE_BUTTON
+
+        update.message.reply_text(
+            f"✅ تم إنشاء القائمة: {menu_name}\n"
+            "أرسل اسم أول زر."
+        )
+
+    # -------- EDIT BUTTON --------
+    elif state == AdminState.EDIT_BUTTON:
+        # placeholder
+        update.message.reply_text("✏️ تعديل الزر (قيد البناء)")
+
+    # -------- DELETE MENU --------
+    elif state == AdminState.DELETE_MENU:
+        # placeholder
+        update.message.reply_text("🗑 حذف القائمة (قيد البناء)")
+
+    # -------- BROADCAST --------
+    elif state == AdminState.BROADCAST:
+        message = text
+        # لاحقًا: إرسال للجميع
+        update.message.reply_text("📣 تم إرسال البث (نظريًا 😄)")
+
+    else:
+        update.message.reply_text("❓ أمر غير معروف في هذه الحالة.")
+
+
+# =========================
+# التعامل مع الملفات
+# =========================
+
+def handle_admin_file(update, context):
+    admin_id = update.effective_user.id
+
+    if admin_id not in admin_sessions:
+        return
+
+    session = admin_sessions[admin_id]
+    state = session["state"]
+
+    if state == AdminState.ADD_FILE_BUTTON:
+        file = update.message.document or update.message.audio or update.message.video
+
+        if not file:
+            update.message.reply_text("❌ أرسل ملفًا صالحًا.")
+            return
+
+        # لاحقًا: حفظ الملف وربطه بالزر
+        update.message.reply_text("📎 تم استلام الملف وربطه بالزر.")
+
+
+# =========================
+# أوامر مساعدة لتغيير الحالة
+# =========================
+
+def start_add_menu(update, context):
+    admin_id = update.effective_user.id
+
+    admin_sessions[admin_id] = {
+        "state": AdminState.ADD_MENU,
+        "data": {}
+    }
+
+    update.message.reply_text("📂 أرسل اسم القائمة الجديدة.")
+
+
+def start_broadcast(update, context):
+    admin_id = update.effective_user.id
+
+    admin_sessions[admin_id]["state"] = AdminState.BROADCAST
+    update.message.reply_text("📣 أرسل رسالة البث.")
