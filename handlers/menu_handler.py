@@ -46,6 +46,7 @@ async def handle_menu(update, context):
     text = update.message.text.strip()
 
     # 🧠 احترام الـ Router: لا نتدخل لو هناك حالة فعالة
+    # 🧩 إضافة هندسية: لا نكسر أي Flow إداري أو بث أو إضافة
     if context.user_data.get("state"):
         return
 
@@ -114,6 +115,7 @@ async def handle_menu(update, context):
             )
 
         # ❗ إدخال غير مفهوم → نعيد نفس القائمة الحالية
+        # 🧩 إضافة هندسية: لا نرمي المستخدم للرئيسية بلا سبب
         return await show_current_menu(update, context, data, path, is_admin)
 
     except Exception as e:
