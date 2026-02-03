@@ -45,9 +45,13 @@ async def handle_menu(update, context):
     is_admin = user_id == context.bot_data.get("ADMIN")
     text = update.message.text.strip()
 
+    # 🧠 احترام الـ Router: لا نتدخل لو هناك حالة فعالة
+    if context.user_data.get("state"):
+        return
+
     try:
         data = load_json(SECTIONS_FILE) or {}
-        path = context.user_data.get("path", [])
+        path = list(context.user_data.get("path", []))  # نسخة آمنة
 
         # 🏠 رجوع للرئيسية
         if text == "🏠 القائمة الرئيسية":
@@ -79,17 +83,17 @@ async def handle_menu(update, context):
 
         section = get_section_by_path(data, path)
 
-        # دخول عنصر من الشجرة
+        # 📂 دخول عنصر من الشجرة
         if text in section:
             item = section[text]
 
-            # 📂 قائمة فرعية
+            # قائمة فرعية
             if item.get("sub"):
                 path.append(text)
                 context.user_data["path"] = path
                 return await show_current_menu(update, context, data, path, is_admin)
 
-            # 📎 زر يرسل ملف
+            # زر يرسل ملف
             if item.get("file"):
                 try:
                     await context.bot.send_document(
@@ -98,7 +102,7 @@ async def handle_menu(update, context):
                         caption=item["file"].get("file_name", "📄 ملف")
                     )
                 except Exception as e:
-                    logger.error(f"File send error: {e}")
+                    logger.error(f"File send error: {e}", exc_info=True)
                     return await update.message.reply_text("❌ فشل إرسال الملف.")
                 return
 
@@ -109,12 +113,9 @@ async def handle_menu(update, context):
                 reply_markup=admin_panel_keyboard()
             )
 
-        # أي شيء خارج المنطق
-        return await update.message.reply_text(
-            "⚠️ اختر من القائمة فقط.",
-            reply_markup=main_menu_keyboard(is_admin=is_admin)
-        )
+        # ❗ إدخال غير مفهوم → نعيد نفس القائمة الحالية
+        return await show_current_menu(update, context, data, path, is_admin)
 
     except Exception as e:
-        logger.error(f"handle_menu crash: {e}")
+        logger.error(f"handle_menu crash: {e}", exc_info=True)
         return await update.message.reply_text("❌ حصل خطأ داخلي.")
