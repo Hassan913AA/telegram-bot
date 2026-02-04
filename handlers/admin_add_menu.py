@@ -1,4 +1,5 @@
-# admin_add_menu.py (Re-engineered & Smart)
+# admin_add_menu.py (Merged & Stable Version)
+
 import uuid
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -7,13 +8,16 @@ from services.storage_service import load_json, save_json
 SECTIONS_FILE = "storage/sections.json"
 FILES_FILE = "storage/files.json"
 
+
 # ======================
 # 🟢 بدء إضافة قائمة أو زر ملف
 # ======================
 async def start_add_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # تهيئة جلسة الأدمن
+    context.user_data["flow"] = "ADMIN_ADD_MENU"
     context.user_data["state"] = "ADMIN_ADD_MENU_WAIT_NAME"
     context.user_data["flow_data"] = {}
+    context.user_data.setdefault("path", [])
+
     await update.message.reply_text("📂 أرسل اسم القائمة أو الزر الجديد:")
 
 
@@ -24,14 +28,32 @@ async def handle_admin_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     state = context.user_data.get("state")
     text = update.message.text.strip()
 
-    # --- انتظار اسم القائمة / الزر ---
+    # --- 1️⃣ انتظار اسم القائمة / الزر ---
     if state == "ADMIN_ADD_MENU_WAIT_NAME":
         context.user_data["flow_data"]["menu_name"] = text
-        context.user_data["state"] = "ADMIN_ADD_MENU_WAIT_FILE"
-        await update.message.reply_text("📎 الآن أرسل الملف الذي سيرتبط بهذا الزر أو اكتب 'لا' للقائمة فقط.")
+        context.user_data["state"] = "ADMIN_ADD_MENU_WAIT_TYPE"
+        await update.message.reply_text("✳ هل تريد ربط ملف؟ أرسل (نعم) أو (لا)")
         return
 
-    # --- بث رسالة جماعية ---
+    # --- 2️⃣ تحديد هل هناك ملف ---
+    if state == "ADMIN_ADD_MENU_WAIT_TYPE":
+        if text == "نعم":
+            context.user_data["state"] = "ADMIN_ADD_MENU_WAIT_FILE"
+            await update.message.reply_text("📎 أرسل الملف الآن")
+            return
+
+        # ❌ بدون ملف → إنشاء قائمة فقط
+        if text == "لا":
+            menu_name = context.user_data["flow_data"]["menu_name"]
+            _add_menu_only(menu_name)
+            await update.message.reply_text(f"✅ تم إنشاء القائمة: {menu_name}")
+            _clear_flow(context)
+            return
+
+        await update.message.reply_text("❗ الرجاء إرسال (نعم) أو (لا)")
+        return
+
+    # --- بث جماعي (كما هو من كودك) ---
     if state == "ADMIN_BROADCAST_TEXT":
         users = load_json("storage/users.json") or []
         for uid in users:
@@ -45,64 +67,72 @@ async def handle_admin_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ======================
-# 🟢 معالجة ملف الأدمن + التحديث الذكي للقوائم
+# 🟢 معالجة ملف الأدمن
 # ======================
 async def handle_admin_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    state = context.user_data.get("state")
-    if state != "ADMIN_ADD_MENU_WAIT_FILE":
+    if context.user_data.get("state") != "ADMIN_ADD_MENU_WAIT_FILE":
         return
 
     file = update.message.document or update.message.audio or update.message.video
-
-    menu_name = context.user_data["flow_data"]["menu_name"]
-
-    sections = load_json(SECTIONS_FILE) or {}
-    if "root" not in sections:
-        sections["root"] = {"sub": {}, "buttons": {}}
-
-    root = sections["root"]
-
-    # ----------------------------
-    # إذا المستخدم أرسل 'لا' → مجرد قائمة بدون ملف
-    # ----------------------------
-    if not file or update.message.text == "لا":
-        # إضافة القائمة الجديدة داخل root sub
-        root["sub"][menu_name] = {"sub": {}, "buttons": {}}
-        save_json(SECTIONS_FILE, sections)
-        await update.message.reply_text(f"✅ تم إنشاء القائمة الجديدة: {menu_name}")
-        context.user_data.clear()
+    if not file:
+        await update.message.reply_text("❗ لم يتم استلام ملف صالح")
         return
 
-    # ----------------------------
-    # حفظ الملف في files.json
-    # ----------------------------
+    menu_name = context.user_data["flow_data"]["menu_name"]
+    _add_button_with_file(menu_name, file)
+
+    await update.message.reply_text(f"✅ تم إنشاء زر وربطه بالملف: {file.file_name}")
+    _clear_flow(context)
+
+
+# ======================
+# 🔧 وظائف مساعدة (داخلية)
+# ======================
+def _add_menu_only(menu_name: str):
+    sections = load_json(SECTIONS_FILE) or {}
+    sections.setdefault("root", {"sub": {}, "buttons": {}})
+
+    sections["root"]["sub"][menu_name] = {
+        "sub": {},
+        "buttons": {}
+    }
+
+    save_json(SECTIONS_FILE, sections)
+
+
+def _add_button_with_file(menu_name: str, file):
+    sections = load_json(SECTIONS_FILE) or {}
+    sections.setdefault("root", {"sub": {}, "buttons": {}})
+
+    # حفظ الملف
     file_uuid = str(uuid.uuid4())
-    file_name = getattr(file, "file_name", "ملف")
     files_data = load_json(FILES_FILE) or {"files": []}
     files_data["files"].append({
         "id": file_uuid,
         "telegram_file_id": file.file_id,
-        "name": file_name
+        "name": file.file_name
     })
     save_json(FILES_FILE, files_data)
 
-    # ----------------------------
-    # حفظ الزر في sections.json تلقائيًا
-    # ----------------------------
-    root["buttons"][menu_name] = {
+    # حفظ الزر
+    sections["root"]["buttons"][menu_name] = {
         "file": {
             "file_id": file.file_id,
-            "file_name": file_name
+            "file_name": file.file_name
         }
     }
+
     save_json(SECTIONS_FILE, sections)
 
-    await update.message.reply_text(f"✅ تم إنشاء زر وربطه بالملف: {file_name}")
-    context.user_data.clear()
+
+def _clear_flow(context):
+    context.user_data.pop("state", None)
+    context.user_data.pop("flow", None)
+    context.user_data.pop("flow_data", None)
 
 
 # ======================
-# 🟢 زر المستخدم يرسل ملف
+# 🟢 زر المستخدم يرسل ملف (كما في كودك – بدون تعديل)
 # ======================
 async def handle_user_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
@@ -110,7 +140,6 @@ async def handle_user_button(update: Update, context: ContextTypes.DEFAULT_TYPE)
     root = sections.get("root", {}).get("sub", {})
     buttons = sections.get("root", {}).get("buttons", {})
 
-    # تحقق أولاً في الأزرار المباشرة
     if text in buttons and buttons[text].get("file"):
         await context.bot.send_document(
             chat_id=update.effective_chat.id,
@@ -119,7 +148,6 @@ async def handle_user_button(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         return
 
-    # تحقق في القوائم الفرعية (sub)
     for menu_name, menu_data in root.items():
         if text in menu_data.get("buttons", {}) and menu_data["buttons"][text].get("file"):
             file_info = menu_data["buttons"][text]
