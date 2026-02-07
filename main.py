@@ -1,123 +1,146 @@
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
-from config import get_token, get_admin_id, logger
+from telegram import ReplyKeyboardMarkup, KeyboardButton
+from config import logger
+from services.storage_service import load_json
+from utils.keyboard import main_menu_keyboard, admin_panel_keyboard
 
-from handlers.start import start
-from handlers.menu_handler import show_current_menu
-from handlers.broadcast import (
-    broadcast_command,
-    handle_broadcast_photo,
-    handle_broadcast_audio,
-    handle_broadcast_text
-)
-from handlers.admin_panel import open_admin_panel
-from handlers.admin_add_menu import handle_admin_text, handle_admin_file
-
-from services.menu_engine import get_tree, get_node_by_path
-from services.user_service import load_users
+SECTIONS_FILE = "storage/sections.json"
 
 
-# =========================
-# 🧠 Router مركزي مضبوط
-# =========================
-async def route_text(update, context):
-    state = context.user_data.get("state")
-    text = update.message.text.strip()
+# ================= أدوات الشجرة =================
+def get_section_by_path(data: dict, path: list) -> dict:
+    """
+    إرجاع العقدة الحالية من الشجرة حسب path
+    آمن 100% ولا يرمي Exceptions
+    """
+    current = data or {}
+    for p in path:
+        node = current.get(p)
+        if not isinstance(node, dict):
+            return {}
+        current = node.get("sub", {})
+        if not isinstance(current, dict):
+            return {}
+    return current
 
+
+# ================= عرض القائمة الحالية =================
+async def show_current_menu(update, context):
     try:
-        # 📢 بث جماعي
-        if state == "BROADCAST_TEXT":
-            await handle_broadcast_text(update, context)
-            return
+        user_id = update.effective_user.id
+        is_admin = user_id == context.bot_data.get("ADMIN")
 
-        # 🛠 حالات الأدمن (تحديد صريح)
-        if state in {
-            "ADMIN_PANEL",
-            "ADMIN_ADD_MENU_WAIT_NAME",
-            "ADMIN_ADD_MENU_WAIT_FILE",
-            "ADMIN_ADD_MENU_WAIT_TYPE",
-        }:
-            await handle_admin_text(update, context)
-            return
+        data = load_json(SECTIONS_FILE) or {}
+        path = list(context.user_data.get("path", []))
 
-        # 👤 مستخدم عادي
-        await handle_user_menu(update, context)
+        section = get_section_by_path(data, path)
+        buttons = []
+
+        # عناصر الشجرة
+        for name in section.keys():
+            buttons.append([KeyboardButton(name)])
+
+        # 🔙 رجوع خطوة واحدة
+        if path:
+            buttons.append([KeyboardButton("🔙 رجوع")])
+
+        # 🔙 رجوع للأدمن
+        if is_admin:
+            buttons.append([KeyboardButton("🔙 رجوع للأدمن")])
+
+        # 🏠 الرئيسية
+        buttons.append([KeyboardButton("🏠 القائمة الرئيسية")])
+
+        if not buttons:
+            buttons = [[KeyboardButton("🏠 القائمة الرئيسية")]]
+
+        return await update.message.reply_text(
+            "📂 اختر:",
+            reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True)
+        )
 
     except Exception as e:
-        logger.error(f"[route_text] error={e}", exc_info=True)
-        await update.message.reply_text("⚠️ حصل خطأ غير متوقع")
+        logger.error(f"show_current_menu crash: {e}", exc_info=True)
+        return await update.message.reply_text("❌ خطأ في عرض القائمة.")
 
 
-# =========================
-# 👤 منطق المستخدم
-# =========================
-async def handle_user_menu(update, context):
-    text = update.message.text.strip()
-    tree = get_tree()
-    path = context.user_data.get("path", [])
-
-    node = get_node_by_path(tree, path)
-    if not node:
+# ================= المعالج الرئيسي للقوائم =================
+async def handle_menu(update, context):
+    # احترام Router: لا نتدخل أثناء أي Flow إداري أو بث
+    if context.user_data.get("state"):
         return
 
-    item = node["children"].get(text)
-    if not item:
-        # إدخال غير مفهوم → نعيد عرض القائمة الحالية
-        await show_current_menu(update, context)
-        return
+    try:
+        user_id = update.effective_user.id
+        is_admin = user_id == context.bot_data.get("ADMIN")
+        text = update.message.text.strip()
 
-    # 📂 دخول قائمة
-    if item["type"] == "menu":
-        context.user_data.setdefault("path", []).append(text)
-        await show_current_menu(update, context)
-        return
+        data = load_json(SECTIONS_FILE) or {}
+        path = list(context.user_data.get("path", []))
 
-    # 📎 زر ملف
-    if item["type"] == "file":
-        await context.bot.send_document(
-            chat_id=update.effective_chat.id,
-            document=item["file_id"],
-            caption=item.get("file_name", "📄 ملف")
-        )
-        return
-
-
-def main():
-    TOKEN = get_token()
-    ADMIN = get_admin_id()
-
-    app = ApplicationBuilder().token(TOKEN).build()
-
-    app.bot_data["ADMIN"] = ADMIN
-    app.bot_data["USERS"] = load_users()
-
-    # أوامر
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("admin", open_admin_panel))
-    app.add_handler(CommandHandler("broadcast", broadcast_command))
-
-    # 📎 ملفات الأدمن (مقيدة بالحالة)
-    app.add_handler(
-        MessageHandler(
-            filters.Document.ALL | filters.VIDEO | filters.AUDIO,
-            lambda update, context: (
-                handle_admin_file(update, context)
-                if context.user_data.get("state") == "ADMIN_ADD_MENU_WAIT_FILE"
-                else None
+        # 🏠 القائمة الرئيسية
+        if text == "🏠 القائمة الرئيسية":
+            context.user_data["path"] = []
+            return await update.message.reply_text(
+                "🏠 القائمة الرئيسية:",
+                reply_markup=main_menu_keyboard(is_admin=is_admin)
             )
-        )
-    )
 
-    # بث
-    app.add_handler(MessageHandler(filters.PHOTO, handle_broadcast_photo))
-    app.add_handler(MessageHandler(filters.AUDIO | filters.VOICE, handle_broadcast_audio))
+        # 🔙 رجوع خطوة
+        if text == "🔙 رجوع":
+            if path:
+                path.pop()
+                context.user_data["path"] = path
+            return await show_current_menu(update, context)
 
-    # Router النصوص
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, route_text))
+        # 🔙 رجوع للأدمن
+        if text == "🔙 رجوع للأدمن" and is_admin:
+            context.user_data["path"] = []
+            return await update.message.reply_text(
+                "🛠 لوحة الأدمن:",
+                reply_markup=admin_panel_keyboard()
+            )
 
-    logger.info("Bot started successfully")
-    print("🤖 Bot is running...")
-    app.run_polling()
+        # 📂 دخول القوائم
+        if text == "📂 القوائم":
+            context.user_data["path"] = []
+            return await show_current_menu(update, context)
 
+        section = get_section_by_path(data, path)
 
-if __name__ == "__main__":
-    main()
+        # عنصر داخل الشجرة
+        if text in section:
+            item = section.get(text, {})
+
+            # قائمة فرعية
+            if isinstance(item.get("sub"), dict):
+                path.append(text)
+                context.user_data["path"] = path
+                return await show_current_menu(update, context)
+
+            # زر ملف
+            file_data = item.get("file")
+            if isinstance(file_data, dict) and file_data.get("file_id"):
+                try:
+                    await context.bot.send_document(
+                        chat_id=update.effective_chat.id,
+                        document=file_data["file_id"],
+                        caption=file_data.get("file_name", "📄 ملف")
+                    )
+                except Exception as e:
+                    logger.error(f"File send error: {e}", exc_info=True)
+                    return await update.message.reply_text("❌ فشل إرسال الملف.")
+                return
+
+        # 🛠 دخول لوحة الأدمن من الرئيسية
+        if is_admin and text == "🛠 لوحة الأدمن":
+            return await update.message.reply_text(
+                "🛠 لوحة تحكم الأدمن:",
+                reply_markup=admin_panel_keyboard()
+            )
+
+        # إدخال غير مفهوم → نعيد نفس القائمة الحالية
+        return await show_current_menu(update, context)
+
+    except Exception as e:
+        logger.error(f"handle_menu crash: {e}", exc_info=True)
+        return await update.message.reply_text("❌ حصل خطأ داخلي.")
