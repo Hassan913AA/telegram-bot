@@ -9,7 +9,7 @@ from handlers.broadcast import (
     handle_broadcast_audio,
     handle_broadcast_text
 )
-from handlers.admin_panel import open_admin_panel, back_to_main
+from handlers.admin_panel import open_admin_panel
 from handlers.admin_add_menu import handle_admin_text, handle_admin_file
 
 from services.menu_engine import get_tree, get_node_by_path
@@ -17,7 +17,7 @@ from services.user_service import load_users
 
 
 # =========================
-# 🧠 Router مركزي نظيف
+# 🧠 Router مركزي مضبوط
 # =========================
 async def route_text(update, context):
     state = context.user_data.get("state")
@@ -29,12 +29,17 @@ async def route_text(update, context):
             await handle_broadcast_text(update, context)
             return
 
-        # 🛠 حالات الأدمن
-        if state and state.startswith("ADMIN_"):
+        # 🛠 حالات الأدمن (تحديد صريح)
+        if state in {
+            "ADMIN_PANEL",
+            "ADMIN_ADD_MENU_WAIT_NAME",
+            "ADMIN_ADD_MENU_WAIT_FILE",
+            "ADMIN_ADD_MENU_WAIT_TYPE",
+        }:
             await handle_admin_text(update, context)
             return
 
-        # 👤 مستخدم عادي (شجرة القوائم)
+        # 👤 مستخدم عادي
         await handle_user_menu(update, context)
 
     except Exception as e:
@@ -43,7 +48,7 @@ async def route_text(update, context):
 
 
 # =========================
-# 👤 منطق المستخدم (مدمج)
+# 👤 منطق المستخدم
 # =========================
 async def handle_user_menu(update, context):
     text = update.message.text.strip()
@@ -56,7 +61,7 @@ async def handle_user_menu(update, context):
 
     item = node["children"].get(text)
     if not item:
-        # إدخال غير مفهوم → نعيد عرض القائمة
+        # إدخال غير مفهوم → نعيد عرض القائمة الحالية
         await show_current_menu(update, context)
         return
 
@@ -90,11 +95,15 @@ def main():
     app.add_handler(CommandHandler("admin", open_admin_panel))
     app.add_handler(CommandHandler("broadcast", broadcast_command))
 
-    # ملفات الأدمن
+    # 📎 ملفات الأدمن (مقيدة بالحالة)
     app.add_handler(
         MessageHandler(
             filters.Document.ALL | filters.VIDEO | filters.AUDIO,
-            handle_admin_file
+            lambda update, context: (
+                handle_admin_file(update, context)
+                if context.user_data.get("state") == "ADMIN_ADD_MENU_WAIT_FILE"
+                else None
+            )
         )
     )
 
